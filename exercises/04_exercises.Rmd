@@ -235,12 +235,34 @@ Stations<-read_csv("http://www.macalester.edu/~dshuman1/data/112/DC-Stations.csv
   9. Use the latitude and longitude variables in `Stations` to make a visualization of the total number of departures from each station in the `Trips` data. Use either color or size to show the variation in number of departures. This time, plot the points on top of a map. Use any of the mapping tools you'd like.
   
 ```{r}
+bike_area <- get_stamenmap(
+  bbox = c(left= -77.3651, bottom = 38.7128, right = -76.6167, top = 39.1049),
+  maptype = "terrain", 
+  zoom = 10)
+
+ ggmap(bike_area) +
+  geom_point(data= Stations, aes(x = long, y = lat))
+
 
 ```
   
   10. Only 14.4% of the trips in our data are carried out by casual users. Create a plot that shows which area(s) have stations with a much higher percentage of departures by casual users. What patterns do you notice? Also plot this on top of a map. I think it will be more clear what the patterns are.
   
 ```{r}
+bike_area <- get_stamenmap(
+  bbox = c(left= -77.3651, bottom = 38.7128, right = -76.6167, top = 39.1049),
+  maptype = "terrain", 
+  zoom = 10)
+
+ Trips %>% 
+  left_join(Stations,
+            by= c("sstation" = "name")) %>% 
+    group_by(client, lat, long) %>%
+  summarize(sum_name = n(), client_prop = mean(client == "Casual")) 
+ 
+  ggmap(bike_area) +
+  geom_point(data= Stations, aes(x = long, y = lat, color = client_prop))
+
 
 ```
   
@@ -251,6 +273,17 @@ The following exercises will use the COVID-19 data from the NYT.
   11. Create a map that colors the states by the most recent cumulative number of COVID-19 cases (remember, these data report cumulative numbers so you don't need to compute that). Describe what you see. What is the problem with this map?
   
 ```{r}
+
+usa <- map_data("state")
+
+covid19 %>%  
+ ggplot()+
+  geom_map(map= usa, 
+           aes(map_id= state, fill = cases)) +
+  expand_limits(x = county_mn$long, y = county_mn$lat) + 
+  theme_map() + 
+  theme(legend.background = element_blank())
+
 
 ```
   
