@@ -12,7 +12,7 @@ output:
 
 
 ```{r setup, include=FALSE}
-#knitr::opts_chunk$set(echo = TRUE, error=TRUE, message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = TRUE, error=TRUE, message=FALSE, warning=FALSE)
 ```
 
 ```{r libraries}
@@ -107,7 +107,7 @@ ggmap(twin_cities) +
   geom_point(data = Starbucks,
              aes(x= Longitude, y= Latitude), color = "red") +
   theme_map()+
-  labs(title= "")
+  labs(title= "Starbucks in the Twin Cities")
 
 ```
 Zoom changes the detail of the map. 10 is the typical zoom but lower would allow you to see more and a higher zoom would show less but more detail.   
@@ -122,7 +122,7 @@ ggmap(twin_cities) +
   geom_point(data = favorite_stp_by_lisa,
              aes(x= long, y= lat), color = "red") +
   theme_map()+
-  labs(title= "")
+  labs(title= "Lisa's Faovrite Places")
 
 ```
 
@@ -139,7 +139,7 @@ ggmap(twin_cities) +
   theme_map() +
   annotate("point", x= -93.1691, y = 44.933, label = "Macalester College", color = "blue") +
   annotate("text", x= -93.1691, y = 44.931, label = "Macalester College")+
-  labs(title= "")
+  labs(title= "Starbucks Locations Around Macalester College")
 ```
 
 ### Choropleth maps with Starbucks data (`geom_map()`)
@@ -179,7 +179,7 @@ starbucks_with_2018_pop_est %>%
   geom_point(data= Starbucks %>% filter(Country == "US", `State/Province` != "AK"), aes(x=Longitude, y=Latitude), color = "red", size = 0.2)+
   expand_limits(x = usa$long, y = usa$lat) + 
   theme_map()+
-  labs(title= "")
+  labs(title= "Starbucks Locations per 10000 People in 2018", caption= "Created by Kate Nozal")
 ```
 
 ### A few of your favorite things (`leaflet`)
@@ -255,7 +255,7 @@ joined_stations <- Stations %>%
 
 ggmap(dc_area) +
   geom_point(data=joined_stations, aes(x=long, y=lat, color = trip_count))+
-  labs(title= "")
+  labs(title= "Total Number of Departures From all Stations")
 
 
 ```
@@ -276,7 +276,7 @@ Trips2<- Trips %>%
  
    ggmap(dc_area) +
   geom_point(data= Trips2, aes(x = long, y = lat, color = client_prop))+
-     labs(title= "")
+     labs(title= "Trip Departures Comparison for Causal Riders")
 
 ```
   
@@ -297,7 +297,7 @@ covid19 %>%
            aes(map_id= state))+
   expand_limits(x = usa$long, y = usa$lat) + 
   theme_map()+
-  labs(title= "")
+  labs(title= "Cumulative Covid Cases by State")
 
 ```
   The map doesn't take into account population so its no surprise that California the most populous state has the most cases. 
@@ -322,7 +322,7 @@ covid19_with_2018_pop %>%
            aes(map_id= state, fill = covid19_per_10000))+
   expand_limits(x = usa$long, y = usa$lat) + 
   theme_map()+
-  labs(title= "")
+  labs(title= "Cumulative Covid Cases by State per 10000 people")
 
 
 ```
@@ -377,8 +377,7 @@ mpls_all %>%
   mutate(prop_suspicious = stop_count/population) %>% 
   leaflet() %>% 
   addProviderTiles(providers$Stamen.TonerHybrid) %>%
-  addPolygons(fillColor = ~pal(prop_suspicious), label = ~BDNAME) %>% 
-
+  addPolygons(fillColor = ~pal(prop_suspicious), label = ~BDNAME) 
   
 
 ```
@@ -403,6 +402,7 @@ mpls_large <- mpls_all %>%
 ## GitHub link
 
   19. Below, provide a link to your GitHub page with this set of Weekly Exercises. Specifically, if the name of the file is 04_exercises.Rmd, provide a link to the 04_exercises.md file, which is the one that will be most readable on GitHub.
+  
+  https://github.com/knozal/comp_112/blob/main/exercises/04_exercises.Rmd
 
 
-**DID YOU REMEMBER TO UNCOMMENT THE OPTIONS AT THE TOP?**
