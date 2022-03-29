@@ -351,7 +351,7 @@ pal <- colorFactor(palette = "magma", domain = MplsStops$problem)
 MplsStops %>% 
   leaflet() %>% 
   addProviderTiles(providers$Stamen.TonerHybrid) %>%
-  addCircleMarkers(lng=~long, lat=~lat, fillColor = ~pal(problem), stroke=FALSE, radius = 2) %>% 
+  addCircleMarkers(lng=~long, lat=~lat, fillColor = ~pal(problem), stroke=FALSE, radius = 2)
   
 
 ```
@@ -385,16 +385,17 @@ mpls_all %>%
   
   18. Use `leaflet` to create a map of your own choosing. Come up with a question you want to try to answer and use the map to help answer that question. Describe what your map shows. 
 ```{r}
-pal <- colorFactor(palette = "magma", domain = MplsStops$white)
+pal <- colorNumeric(palette = "magma", domain = MplsStops$white)
  
- 
-mpls_large <- mpls_all %>%
-  left_join(MplsStops,
-            by = c("BDNAME" = "neighborhood")) %>% 
+ mpls_all %>%
   leaflet() %>% 
   addProviderTiles(providers$Stamen.TonerHybrid) %>%
-  addPolygons(fillColor = ~pal(white), label = ~BDNAME)
-  addCircleMarkers(lng=~long, lat=~lat, stroke=FALSE, radius = 2)
+  addPolygons(fillColor = ~pal(white), label = ~BDNAME, fillOpacity = 0.7 ) %>% 
+   addLegend(pal = pal, values = ~white, 
+             bins = 4, 
+             opacity = 0.7, 
+             title = NULL,
+  position = "bottomright")
   
 ```
   
