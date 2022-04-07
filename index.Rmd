@@ -1,0 +1,696 @@
+---
+title: "Importing and Scraping Data ...   \n and random tidying tools"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+    code_download: true
+---
+
+## Setup
+
+To find other tutorials for this class, go to the main website, [https://ds112-lendway.netlify.app/](https://ds112-lendway.netlify.app/).
+
+
+Welcome to another tutorial for this class, COMP/STAT 112: *Introduction to Data Science*! It will be similar to the others, including demo videos and files embedded in this document and practice problems with hints or solutions at the end. There are some new libraries, so be sure to install those first.
+
+As most of our files do, we start this one with three R code chunks: 1. options, 2. libraries and settings, 3. data. 
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE, 
+                      message = FALSE, 
+                      warning = FALSE)
+```
+
+```{r libraries}
+library(tidyverse)     # for data cleaning and plotting
+library(gardenR)       # for Lisa's garden data
+library(lubridate)     # for date manipulation
+library(openintro)     # for the abbr2state() function
+library(palmerpenguins)# for Palmer penguin data
+library(maps)          # for map data
+library(ggmap)         # for mapping points on maps
+library(gplots)        # for col2hex() function
+library(RColorBrewer)  # for color palettes
+library(sf)            # for working with spatial data
+library(leaflet)       # for highly customizable mapping
+library(ggthemes)      # for more themes (including theme_map())
+library(plotly)        # for the ggplotly() - basic interactivity
+library(gganimate)     # for adding animation layers to ggplots
+library(gifski)        # for creating the gif (don't need to load this library every time,but need it installed)
+library(transformr)    # for "tweening" (gganimate)
+library(shiny)         # for creating interactive apps
+library(patchwork)     # for nicely combining ggplot2 graphs  
+library(gt)            # for creating nice tables
+library(rvest)         # for scraping data
+library(robotstxt)     # for checking if you can scrape data
+library(janitor)       # for cleaning names
+theme_set(theme_minimal())
+```
+
+```{r my_libraries, include=FALSE}
+# Lisa needs this, students don't
+library(downloadthis) # for including download buttons for files
+library(flair)        # for highlighting code
+#library(xaringanExtra)# for small slides and other cool things
+```
+
+```{r data}
+# Lisa's garden data
+data("garden_harvest")
+```
+
+## Learning Goals
+
+After this tutorial, you should be able to do the following:
+
+* Import data into R that is stored in a common file type (.csv, .txt, excel, etc) or in a Google spreadsheet.  
+
+* Find resources to read in data that is in a format other than one of the more common formats.
+
+* Use `rvest()` functions to scrape data from a simple webpage and recognize when scraping the data will require more advanced tools.
+
+* Create nice tables with the `gt` functions. 
+
+* Use `patchwork` to display related plots together nicely.
+
+## Importing Data
+
+In this section, we'll learn some of the common ways we can import data into R. Many of these functions you have already used and others you may not ever need to use. So, this will be a pretty quick overview.
+
+### Common Import functions
+
+The table below lists some common import functions and when you would use them.
+
+Function | Use when
+-----------|---------------
+`read_csv()`| data are saved in .csv (comma delimited) format - you can save Excel files and Google Sheets in this format 
+`read_delim()` | data are saved in other delimited formats (tab, |, space, etc.)  
+`read_sheet()` | data are in a Google Sheet  
+`st_read()` | reading in a shapefile
+
+After reading in new data, it is ALWAYS a good idea to do some quick checks of the data. Here are some things I always do:
+
+1. Open the data in the spreadsheet-like viewer and take a look at it. Sort it by different variables by clicking on the arrows next to the variable name. Make sure there isn't anything unexpected.
+
+2. Do a quick summary of the data. The code below is one of the things I almost always do because it's quick. For quantitative variables, it tells me some summary statistics and will let me know if there are missing values. For factors (they need to be factors, not just character variables - the `mutate()` changes them to factors), it shows you counts for the top categories and tells you if there are any missing values. 
+
+```{r}
+garden_harvest %>% 
+  mutate(across(where(is.character), as.factor)) %>% 
+  summary()
+```
+
+3. After that, I usually do some quick summaries (counts, sums, etc.) of some of the main variables I am interested in. 
+
+### Using the Import Dataset Wizard
+
+When reading in data from a file I created, I will often use the Import Wizard to help me write the code. DO NOT use it to import the data as you will need the code to read in the data in order to knit your document. Watch the quick video below of how I use it. 
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/GtCsjtZBNp4" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen data-external="1"></iframe>
+
+[Voicethread: Using the Import Dataset Wizard](https://voicethread.com/share/15717600/)
+
+### Resources
+
+* [R4DS](https://r4ds.had.co.nz/data-import.html)
+
+* [readr documentation](https://readr.tidyverse.org/) and data import cheatsheet
+
+### Your Turn!
+
+#### Exercise 1
+
+Read in the fake garden harvest data. Find the data [here](https://github.com/llendway/scraping_etc/blob/main/2020_harvest.csv) and click on the `Raw` button to get a direct link to the data. 
+
+
+#### Exercise 2
+
+Read in this [data](https://www.kaggle.com/heeraldedhia/groceries-dataset) from the kaggle website. You will need to download the data first. Do some quick checks of the data to assure it has been read in appropriately.
+
+## Scraping Data
+
+While a great deal of data is available via Web APIs and data warehouses, not all of it is. Programs can use a process called **web scraping** to collect data that is available to humans (via web browsers) but not computer programs. 
+
+### Warnings!  
+
+* You cannot always legally scrape data from a webpage. Use the `paths_allowed()` function from the `robotstxt` library to check to see if you can scrape data from a webpage before you begin. I check four pages below. This tells me that I cannot scrape the second webpage but can scrape the other ones
+
+```{r, error=TRUE}
+paths_allowed(paths = "https://www.macalester.edu/registrar/schedules/2017fall/class-schedule/#crs10008")
+paths_allowed(paths = "https://www.zillow.com/homes/55104_rb/")
+paths_allowed(paths = "https://salsacycles.com/bikes")
+paths_allowed(paths = "https://www.wholefoodsmarket.com/products/produce")
+```
+
+* Websites change! Often! So if you are going to scrape a lot of data, it is probably worthwhile to save and date a copy of the website. Otherwise, you may return after some time and your scraping code will include all of the wrong CSS selectors. (There is an example of this happening with the Salsa Cycles website below - arg!)
+
+
+### Finding CSS Selectors
+
+In order to gather information from a webpage, we must learn the language used to identify patterns of specific information. For example, on the [Macalester Registrar's Fall 2017 Class Schedule](https://www.macalester.edu/registrar/schedules/2017fall/class-schedule/#crs10008) you can visually see that the data is represented in a table. The first column shows the course number, the second the title, etc.
+
+![](https://www.macalester.edu/~dshuman1/data/112/registrar.png)
+
+
+We will identify data in a webpage using a pattern matching language called [CSS Selectors](https://css-tricks.com/how-css-selectors-work/) that can refer to specific patterns in HTML, the language used to write web pages. For example, the CSS selector "a" selects all hyperlinks in a webpage ("a" represents "anchor" links in HTML), "table > tr > td:nth-child(2)" would find the second column of an HTML table.
+
+I will illustrate how to find these attributes using some tools that are available in the Chrome web browser. You should install the [Selector Gadget](http://selectorgadget.com/) for Chrome (the video on that same page can be useful). With this, you "teach" the Selector Gadget which data you are interested in on a web page, and it will show you the CSS Selector for this data. We will also use developer tools to find the selectors.   
+
+Head over to the [Macalester Registrar's fall 2017 class schedule](https://www.macalester.edu/registrar/schedules/2017fall/class-schedule/). Click the selector gadget icon in the top right corner of Chrome. As you mouse over the webpage, different parts will be highlighted in orange. Click on the first course number, `AMST 101-01`. You'll notice that the Selector Gadget information in the lower right describes what you clicked on:
+
+![](https://www.macalester.edu/~dshuman1/data/112/SelectorGadgetActionShot2.png)
+
+Scroll through the page to verify that only the information you intend (the course number) is selected. The selector panel shows the CSS selector (`.class-schedule-course-number`) and the number of matches for that CSS selector (762).
+
+We can also do this using the Developer Tools. On the webpage, right click and choose inspect. On the Elements tab, click the select an element icon in the upper left-hand corner. Then, go click on `AMST 101-01` on the webpage. You should see something like the image below.
+
+![](../../images/class_name_inspect.png)
+
+Now that we have the selector for the course number, let's find the selector for the days of the week. Clear the selector by clicking the "Clear" button on the result pane, and then click the `W` under days for `AMST 101-01`. You will notice that the selector was too broad and highlighted information we don't want. You need to teach Selector Gadget a correct selector by clicking the information you **don't want** to turn it red. Once this is done, you should have 762 matches and a CSS selector of
+`.class-schedule-course-title+ .class-schedule-label`.
+
+![](../../images/selector_gadget_day.png)
+
+When I use the Developer Tools and highlight a class day, I see the following, which seems to indicate that the selector is `td.class-schedule-label`. Notice that other fields (like Instructor) show this same selector. 
+
+![](../../images/day_of_week_inspect.png)
+
+### Retrieving Data Using `rvest` and CSS Selector
+
+Now that we have identified CSS selectors for the information we need, let's fetch the data in `R`. We will be using the `rvest` package, which retrieves information from a webpage and turns it into R data tables.
+
+First, we read in the webpage.
+
+```{r}
+fall2017 <- read_html("https://www.macalester.edu/registrar/schedules/2017fall/class-schedule/#crs10008")
+```
+
+Once the webpage is loaded, we can retrieve data using the CSS selectors we specified earlier. The following code retrieves the course numbers and names as a vector and puts them in a dataset (tibble) called course_df. The `html_nodes()` function allows us to identify nodes in a variety of ways. See the "Finding elements with CSS selectors" section of [this tutorial](https://data-lessons.github.io/library-webscraping-DEPRECATED/02-csssel/) for more information.
+
+```{r}
+# Retrieve and inspect course numbers
+course_nums <- 
+  fall2017 %>%
+  html_elements(".class-schedule-course-number") %>%
+  html_text2()
+head(course_nums)
+
+# Retrieve and inspect course names
+course_names <- 
+  fall2017 %>%
+  html_elements(".class-schedule-course-title") %>%
+  html_text2()
+head(course_names)
+
+course_df <- tibble(number=course_nums, name=course_names)
+head(course_df)
+```
+
+Next, let's try to grab the day of the week. First, we'll do it using the selector we found with the Selector Gadget. 
+
+```{r}
+course_days <- fall2017 %>%
+  html_elements(".class-schedule-course-title+ .class-schedule-label") %>%
+  html_text2()
+head(course_days)
+```
+
+This looks pretty good, although we would like to get rid of the "Days: " at the beginning. We'll come back to that in a minute.
+
+
+Let's see what happens when we try to use the selector we found using developer tools.
+
+```{r}
+fall2017 %>%
+  html_elements("td.class-schedule-label")  %>% 
+  html_text2() %>% 
+  head()
+```
+
+This returns much more than what we want. That is because there are five fields that use that selector. So, we need to be more specific. One way we can do this is by identifying which "child" it is. If we look at the children of the "parent" node, we see that "Days" is the 3rd child. If you are used to html, you likely could have figured that out without doing this step.
+
+```{r}
+fall2017 %>%
+  html_element("table tr") %>% #just look at the first one
+  html_children() %>% 
+  html_text2()
+```
+
+We can use that information to make a more specific selector.
+
+```{r}
+fall2017 %>%
+  html_elements("td.class-schedule-label:nth-child(3)") %>% 
+  html_text2() %>% 
+  head()
+```
+
+
+We would also like to get rid of the "Days: " at the beginning. We can do that with `str_sub()` from the `stringr` library.
+
+```{r}
+course_days <- fall2017 %>%
+  html_elements("td.class-schedule-label:nth-child(3)") %>% 
+  html_text2() %>% 
+  str_sub(start = 7)
+
+head(course_days)
+```
+
+### Scraping data from a table on a website
+
+#### Example 1: Baseball
+
+Sometimes when data are already in a table on a website, it can be a little easier to scrape it. Let's go through a couple of those examples. The first one will use the [World Series television ratings](https://en.wikipedia.org/wiki/World_Series_television_ratings) on Wikipedia. 
+
+Ideally, the code below would read the html. For some reason this is giving the following error. 
+
+```{r, error=TRUE}
+"https://en.wikipedia.org/wiki/World_Series_television_ratings" %>% 
+  read_html()
+```
+
+If it does not give an error for you, then you can use that code to replace the first three lines of code in the next code chunk. If it does give you an error, then the following code should fix it.
+
+```{r}
+"https://en.wikipedia.org/wiki/World_Series_television_ratings" %>% 
+  httr::GET(config = httr::config(ssl_verifypeer = FALSE)) %>% 
+  read_html()
+```
+
+When I tried to do this with the SelectorGadget, I didn't have any luck finding the right selector. Even inspecting and copying and pasting the selector didn't work - notice it is empty below. 
+
+```{r}
+"https://en.wikipedia.org/wiki/World_Series_television_ratings" %>% 
+  httr::GET(config = httr::config(ssl_verifypeer = FALSE)) %>% 
+  read_html() %>% 
+  html_elements("#mw-content-text > div.mw-parser-output > table.wikitable.sortable.jquery-tablesorter") 
+```
+
+![Trying to find the right selector.](../../images/rvest_selector_baseball.png)
+
+
+As a last resort (and also tipped off by [David Montgomery](https://github.com/dhmontgomery/nicar19/blob/master/r3.md)), I tried copying the xpath from the inspection, rather than the selector and it worked! I also use `html_element()` rather than `html_elements()`, since `html_element()` brought back something extra. Websites are still a mystery to me. 
+
+```{r}
+"https://en.wikipedia.org/wiki/World_Series_television_ratings" %>% 
+  httr::GET(config = httr::config(ssl_verifypeer = FALSE)) %>% 
+  read_html() %>% 
+  html_element(xpath = '//*[@id="mw-content-text"]/div[1]/table[2]') %>% 
+  html_table(header = TRUE, fill = TRUE)
+```
+
+**What else might we want to do to make this table look better and be more user friendly?** (HINTS: `clean_names()` from `janitor`, `separate()` to fix some variable values, `pivot_longer()`?)
+
+#### Example 2: Freedom scores
+
+The next dataset comes from [Freedom House](https://freedomhouse.org/countries/freedom-world/scores) and was shown to me by [Lynley Aldridge](https://github.com/lynleyaldridge/tidytuesday/blob/main/2022/2022-week08/americas.R). Once again, I was unable to find the selector using the SelectorGadget. It kept giving `th, td`, which seems to return way too many things. 
+But, I was able to inspect and copy and paste the selector this time, and it worked!
+
+```{r}
+read_html("https://freedomhouse.org/countries/freedom-world/scores") %>% 
+  html_element("#block-countryscorestable > table") %>% 
+  html_table()
+```
+
+![](../../images/rvest_selector_freedom.png)
+
+**What else might we want to do to make this table look better and be more user friendly?** (See hints for previous table.)
+
+### Scraping data from Whole Foods website
+
+Next, we'll try something a bit more challenging - scraping some data from the [Whole Foods website](https://www.wholefoodsmarket.com/products/produce), specifically produce. First, let's be legal:
+
+```{r}
+paths_allowed("https://www.wholefoodsmarket.com/products/produce")
+```
+
+Next, let's read in the webpage:
+
+```{r}
+whole_foods <- read_html("https://www.wholefoodsmarket.com/products/produce")
+```
+
+Go take a look at the website. It should look something like the image below (unless it's changed - I hope not!).
+
+![](../../images/rvest_whole_foods.png)
+
+This time, with a little bit of work, I was able to get the right selector with the SelectorGadget. 
+
+```{r}
+whole_foods %>% 
+  html_elements("#category-page-body .w-cms--font-body__sans-bold") %>% 
+  html_text2()
+```
+
+Notice the first 4 items are not supposed to be there ... I couldn't figure out how to get rid of them nicely. 
+
+Sometimes, we might want to pull some information from the link to each item on the page. The code below will create each produce item's website. The `html_elements()` argument came from using the Developer tools inspector, but I needed to use the name near the image, not the copied one (see image below).
+
+```{r}
+produce_websites <- 
+  whole_foods %>% 
+  # the selector we need
+  html_elements("a.w-pie--product-tile__link") %>% 
+  # only want the href attribute
+  html_attr("href") %>% 
+  # concatenate the beginning of the website to each href - the . lets it know
+  # to use the data from the previous step there.
+  str_c("https://www.wholefoodsmarket.com", ., sep = "")
+
+head(produce_websites)
+```
+
+![](../../images/rvest_website_selector.png)
+
+One thing we could do on this page is grab the image of the produce. This is done below for the apple image. 
+
+```{r}
+image_example <-
+  # First website
+  produce_websites[1] %>%
+  # Read that site
+  read_html() %>% 
+  # Copy and paste the selector from developer tools inspector
+  html_elements("#main-content > div > div.w-pie--pdp-image > div > div.w-pie--product-detail-carousel > div.w-pie--pdc__large > div > div > div > div.slick-slide.slick-active.slick-current > div > div > div > div > figure > img") %>% 
+  # Only keep the src attribute - link to image
+  html_attr("src")
+
+# Download the image
+download.file(image_example,
+              destfile = "apple.png")
+```
+
+Now I can read in the image using `![]()` notation where the location of the file is in the parentheses.
+
+![](apple.png)
+
+In the code, we can change the website to the 3rd produce item (avocado), keeping the rest of the code the same, and we'll save the avocado image. We could even use some functions from the `purrr` library to help us do this for all the produce! 
+
+```{r}
+image_example2 <-
+  # First website
+  produce_websites[3] %>%
+  # Read that site
+  read_html() %>% 
+  # Copy and paste the selector from developer tools inspector
+  html_elements("#main-content > div > div.w-pie--pdp-image > div > div.w-pie--product-detail-carousel > div.w-pie--pdc__large > div > div > div > div.slick-slide.slick-active.slick-current > div > div > div > div > figure > img") %>% 
+  # Only keep the src attribute - link to image
+  html_attr("src")
+
+# Download the image
+download.file(image_example2,
+              destfile = "avocado.png")
+```
+
+![](avocado.png)
+
+### Another example ... bikes! (NO LONGER WORKS - sad times!)
+
+This is an old (summer 2021) example that no longer works because Salsa changed their website. Some of the `rvest` code is also old. I (Lisa) was pretty sad because I spent a lot of time on this example, so I'm keeping it here, just to remember it. Also, I got some great ideas from folks on Twitter. Evan Rushton provided a [new solution](https://github.com/evanrushton/utils/blob/main/chromedriver-example.R) and `@Datenshatz` let me know that much of the code still works if you use an archived [website](https://web.archive.org/web/20210506121757/https://salsacycles.com/bikes). 
+
+This example aims to show a couple techniques not shown in the previous example. We will be examining [Salsa brand bikes](https://salsacycles.com/bikes). 
+
+Initially, we just read in the webpage, like we did before.
+
+```{r, eval=FALSE}
+salsa_url <- "https://salsacycles.com/bikes"
+salsa <- read_html(salsa_url)
+```
+
+Below I pull the name of the bike. Note that this returns the same results whether or not I comment out the 2nd line of code or not. 
+
+```{r, eval=FALSE}
+salsa %>% 
+  html_nodes("div.small-6.large-3.columns.left.bike-listing") %>% 
+  html_nodes(".title") %>% 
+  html_text()
+```
+
+Below I pull the classification of the bike. Try commenting out the second line of code. What happens? Try removing the `str_trim()`. What happens?
+
+```{r, eval=FALSE}
+salsa %>% 
+  html_nodes(".small-6.large-3.columns.left.bike-listing") %>% 
+  html_nodes(".classification") %>% 
+  html_text() %>% 
+  str_trim()
+```
+
+What I would really like is some more detailed information for each of these bikes, like their prices, sizes, etc. But that information is on each bikes' webpage, eg. [WARBIRD](https://salsacycles.com/bikes/warbird/2020_warbird_grx_810_di2).
+
+I can collect the piece of the url that will link to each bikes' page...
+
+```{r, eval=FALSE}
+bike_pages <- 
+  salsa %>% 
+  html_nodes(".small-6.large-3.columns.left.bike-listing a") %>% 
+  html_attr("href") 
+
+bike_pages
+```
+
+And combine that with the main Salsa page to form the url for each bike.
+
+```{r, eval=FALSE}
+url <- paste("https://salsacycles.com", bike_pages, sep = "")
+url
+```
+
+We have not used square bracket notation too much in this class, but it references specific elements of a vector. So, I can read in the first webpage, and grab the bike name. (Note that this is just giving the info for the first bike displayed on that page. I would have to do more work to dig for all of them.)
+
+```{r, eval=FALSE}
+url[1] %>%
+  read_html() %>% 
+  html_nodes("h1.bike-title") %>% 
+  html_text()
+```
+
+And I can find the price of that bike. We would have to do some work to convert this to a number.
+
+```{r, eval=FALSE}
+url[1] %>% 
+  read_html() %>% 
+  html_nodes(".price") %>% 
+  html_text()
+```
+
+And the description:
+
+```{r, eval=FALSE}
+url[1] %>% 
+  read_html() %>% 
+  html_nodes(".platform-copy p") %>% 
+  html_text()
+```
+
+I could even pull out an entire table of information. This one took some digging to find. I encourage you to walk through row by row to try to better understand what each line of code does.
+
+```{r, eval=FALSE}
+url[1] %>% 
+  read_html() %>% 
+  html_nodes("table") %>% 
+  .[7] %>% 
+  html_table() %>% 
+  .[[1]]
+```
+
+
+I would likely want to do this for every bike. I can do this in a nice way and bring it back in a single vector using some functions from the `purrr` library, including `map()` and `flatten_chr()`. This takes a while to run (> 1 minute). I'm sure there is a more efficient way, but I don't know what it is.
+
+```{r, eval=FALSE}
+url %>%
+  purrr::map(
+    function(x) 
+      read_html(x) %>% 
+      html_nodes(".price") %>% 
+      html_text()
+    ) %>% 
+  flatten_chr()
+```
+
+### Resources
+
+  * Slides from Heather Lendway (remember, she's an awesome Data Scientist in addition to an amazing athlete). Download below.
+  
+```{r, echo=FALSE}
+download_file(
+  path = "../HLendwaynoRthConfWebScrapingDistribute.pptx",
+  button_label = "Download HL's slides",
+  button_type = "info",
+  has_icon = TRUE,
+  icon = "fa fa-save",
+  self_contained = FALSE
+)
+```
+
+  * [Scraping weather data](https://www.dataquest.io/blog/web-scraping-in-r-rvest/) by Christian Pascual  
+  
+  * [Intro to Web Scraping](https://www.r-bloggers.com/2019/04/practical-introduction-to-web-scraping-in-r/)
+  * [Many resources in this tweet thread](https://twitter.com/lisalendway/status/1510337006911459335)
+
+### Your turn!
+
+Use the data from the [Macalester Registrar's Fall 2017 Class Schedule](https://www.macalester.edu/registrar/schedules/2017fall/class-schedule/#crs10008) to complete all these exercises.
+
+#### Exercise 1
+
+Find the correct selectors for the following fields. Make sure that each matches 762 results:
+
+  1. Course Number
+  2. Course Name
+  3. Day
+  4. Time
+  5. Room
+  6. Instructor
+  7. Avail. / Max
+  8. General Education Requirements (make sure you only match 762; beware of the Mac copyright banner at the bottom of the page!)
+  9. Description
+
+Then, put all this information into one data frame. Do not include any extraneous information like "Instructor: ".
+  
+
+#### Exercise 2
+
+Create a graph that shows the number of sections offered per department. Hint: The department is a substring of the course number. Yes, COMP and MATH are the same department, but for this exercise you can just show the results by four letter department code, e.g., with COMP and MATH separate.
+
+
+#### Exercise 3
+
+Analyze the typical length of course names by department. To do so, create a new data table based on your courses data table, with the following changes:
+  
+  * New columns for the length of the title of a course and the length of the description of the course. Hint: `str_length`.  
+  * Remove departments that have fewer than 10 sections of courses. To do so, group by department, then remove observations in groups with fewer than 10 sections (Hint: use filter with n()). Then `ungroup()` the data.  
+  * Create a visualization of the differences across groups in lengths of course names or course descriptions. Think carefully about the visualization you should be using!
+
+
+
+## Creating nice tables  
+
+For this part, you should download the files that go with the demo video by Rich Iannone and follow along! I've added a few things that he didn't cover in the video and made a couple small changes since a few of the functions have changed since he made the video.
+
+### Demo video (it's not me!)
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/h1KAjSfSbmk" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen data-external="1"></iframe>
+
+```{r, echo=FALSE}
+download_file(
+  path = "gt_demo_no_code.Rmd",
+  button_label = "Download gt demo file (without code)",
+  button_type = "warning",
+  has_icon = TRUE,
+  icon = "fa fa-save",
+  self_contained = FALSE
+)
+```
+
+```{r, echo=FALSE}
+download_file(
+  path = "gt_demo.Rmd",
+  button_label = "Download gt demo file (with code)",
+  button_type = "info",
+  has_icon = TRUE,
+  icon = "fa fa-save",
+  self_contained = FALSE
+)
+```
+
+### Resources
+
+* [Rich Iannone's](https://www.youtube.com/watch?v=h1KAjSfSbmk) demo  
+* [Guidelines for Better Tables in R](https://themockup.blog/posts/2020-09-04-10-table-rules-in-r/) by Thomas Mock  
+* [gt documentation](https://gt.rstudio.com/reference/index.html) - a lot of detail but great place to go to see all the functions available
+
+### Your turn!
+
+#### Exercise 1
+
+Write code to replicate the table shown below created from the `garden_harvest` data:
+
+![](garden_table.html){width=600, height=1000}
+
+
+#### Exercise 2
+
+Create a table using `gt` with data from your project.
+
+## Combining graphs with `patchwork`
+
+I am only going to show you a couple of my favorite parts of `patchwork`. I encourage you to look at more details in the resources I listed below.
+
+The two operators I use most often are `+` and `\`. The vertical bar, `+` is used to place plots next to each other. The backslash, `\`, is used to stack plots. Let's look at an example.
+
+```{r}
+g1 <- garden_harvest %>% 
+  filter(vegetable %in% c("tomatoes", "beans", "carrots")) %>% 
+  group_by(vegetable, date) %>% 
+  summarize(daily_harvest_lb = sum(weight)*0.00220462) %>% 
+  ggplot(aes(x = date, 
+             y = daily_harvest_lb, 
+             color = vegetable)) +
+  geom_line() +
+  scale_color_manual(values = c("beans" = "lightgreen",
+                                "carrots" = "darkorange",
+                                "tomatoes" = "darkred")) +
+  labs(x = "", 
+       y = "",
+       title = "Daily harvest (lb)") +
+  theme(legend.position = "none")
+
+g2 <- garden_harvest %>% 
+  filter(vegetable %in% c("tomatoes", "beans", "carrots")) %>% 
+  group_by(vegetable, date) %>% 
+  summarize(daily_harvest_lb = sum(weight)*0.00220462) %>% 
+  mutate(cum_harvest_lb = cumsum(daily_harvest_lb)) %>% 
+  ggplot(aes(x = date, 
+             y = cum_harvest_lb, 
+             color = vegetable)) +
+  geom_line() +
+  scale_color_manual(values = c("beans" = "lightgreen",
+                                "carrots" = "darkorange",
+                                "tomatoes" = "darkred")) +
+  labs(x = "", 
+       y = "",
+       title = "Cumulative harvest (lb)") +
+  theme(legend.position = "none")
+
+g3 <- garden_harvest %>% 
+  filter(vegetable %in% c("tomatoes", "beans", "carrots")) %>% 
+  group_by(vegetable) %>% 
+  summarize(total_harvest_lb = sum(weight)*0.00220462) %>% 
+  ggplot(aes(x = total_harvest_lb, 
+             y = fct_reorder(vegetable, total_harvest_lb, .desc = FALSE), 
+             fill = vegetable)) +
+  geom_col() +
+  scale_fill_manual(values = c("beans" = "lightgreen",
+                                "carrots" = "darkorange",
+                                "tomatoes" = "darkred")) +
+  labs(x = "", 
+       y = "",
+       title = "Total harvest (lb)")
+
+g3 + (g1/g2) + 
+  plot_annotation(title = "Look at these cool plots") 
+```
+
+There are many functions that help use shared legends, align plots, and more. So be sure to check out the resources below.
+
+### Resources
+
+* [GitHub page](https://github.com/thomasp85/patchwork): scroll to the bottom to see more detailed links in the "Learn more" section  
+
+* [Excellent example](https://www.littlemissdata.com/blog/patchwork) by Laura Ellis, aka \@LittleMissData
+
+### Your turn!
+
+#### Exercise 1
+
+Combine at least two garden graphs using the `patchwork` operators and functions. Check out the documentation for having shared legends.
+
+#### Exercise 2
+
+Combine at least two graphs using your project data.
+
+
