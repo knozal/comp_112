@@ -12,7 +12,7 @@ output:
 
 
 ```{r setup, include=FALSE}
-#knitr::opts_chunk$set(echo = TRUE, error=TRUE, message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = TRUE, error=TRUE, message=FALSE, warning=FALSE)
 ```
 
 ```{r libraries}
@@ -37,6 +37,7 @@ library(patchwork)     # for nicely combining ggplot2 graphs
 library(gt)            # for creating nice tables
 library(rvest)         # for scraping data
 library(robotstxt)     # for checking if you can scrape data
+library(tibble)
 theme_set(theme_minimal())
 ```
 
@@ -51,46 +52,83 @@ covid19 <- read_csv("https://raw.githubusercontent.com/nytimes/covid-19-data/mas
 
 ## Put your homework on GitHub!
 
-Go [here](https://github.com/llendway/github_for_collaboration/blob/master/github_for_collaboration.md) or to previous homework to remind yourself how to get set up. 
-
-Once your repository is created, you should always open your **project** rather than just opening an .Rmd file. You can do that by either clicking on the .Rproj file in your repository folder on your computer. Or, by going to the upper right hand corner in R Studio and clicking the arrow next to where it says Project: (None). You should see your project come up in that list if you've used it recently. You could also go to File --> Open Project and navigate to your .Rproj file. 
-
-## Instructions
-
-* Put your name at the top of the document. 
-
-* **For ALL graphs, you should include appropriate labels.** 
-
-* Feel free to change the default theme, which I currently have set to `theme_minimal()`. 
-
-* Use good coding practice. Read the short sections on good code with [pipes](https://style.tidyverse.org/pipes.html) and [ggplot2](https://style.tidyverse.org/ggplot2.html). **This is part of your grade!**
-
-* **NEW!!** With animated graphs, add `eval=FALSE` to the code chunk that creates the animation and saves it using `anim_save()`. Add another code chunk to reread the gif back into the file. See the [tutorial](https://animation-and-interactivity-in-r.netlify.app/) for help. 
-
-* When you are finished with ALL the exercises, uncomment the options at the top so your document looks nicer. Don't do it before then, or else you might miss some important warnings and messages.
+https://github.com/knozal/comp_112/blob/main/06_exercises.Rmd
 
 
 ## Warm-up exercises from tutorial
 
 1. Read in the fake garden harvest data. Find the data [here](https://github.com/llendway/scraping_etc/blob/main/2020_harvest.csv) and click on the `Raw` button to get a direct link to the data. After reading in the data, do one of the quick checks mentioned in the tutorial.
+
+```{r}
+harvest_2020 <- read_csv("https://raw.githubusercontent.com/llendway/scraping_etc/main/2020_harvest.csv", 
+    col_types = cols(weight = col_number()), 
+    na = "MISSING", skip = 2) %>% 
+  select(-1)
+
+harvest_2020 %>% 
+  mutate(across(where(is.character), as.factor)) %>% 
+  summary()
+```
   
 2. Read in this [data](https://www.kaggle.com/heeraldedhia/groceries-dataset) from the kaggle website. You will need to download the data first. Save it to your project/repo folder. Do some quick checks of the data to assure it has been read in appropriately.
 
-3. Create a table using `gt` with data from your project or from the `garden_harvest` data if your project data aren't ready. Use at least 3 `gt()` functions.
+```{r}
+Groceries_dataset <- read_csv("Groceries_dataset.csv")
 
-4. CHALLENGE (not graded): Write code to replicate the table shown below (open the .html file to see it) created from the `garden_harvest` data as best as you can. When you get to coloring the cells, I used the following line of code for the `colors` argument:
-  
-```{r, eval=FALSE}
-colors = scales::col_numeric(
-      palette = paletteer::paletteer_d(
-        palette = "RColorBrewer::YlGn"
-      ) %>% as.character()
+Groceries_dataset %>% 
+  mutate(across(where(is.character), as.factor)) %>% 
+  summary()
 ```
 
-![](garden_table.html){width=600, height=1000}
+3. Create a table using `gt` with data from your project or from the `garden_harvest` data if your project data aren't ready. Use at least 3 `gt()` functions.
+```{r}
+garden_table<-garden_harvest %>% 
+  gt() %>% 
+   fmt_date(
+    columns = vars(date),
+    rows = everything(),
+    date_style = 6
+  ) %>% 
+cols_hide(columns = units) %>% 
+  tab_footnote(
+    footnote = "Weight is in gram.",
+    locations = cells_column_labels(columns = vars(weight))
+  )
+
+garden_table
+```
+
 
   
 5. Use `patchwork` operators and functions to combine at least two graphs using your project data or `garden_harvest` data if your project data aren't read.
+
+```{r}
+g1 <-garden_harvest %>%
+  filter(vegetable == "tomatoes") %>% 
+  ggplot() +
+  geom_col(mapping = aes(x = weight, y = variety, fill = variety)) +
+  labs(title= "Total Harvest Weight of All Varieties of Tomatoes") +
+    ylab(NULL) +
+    xlab("Weight (grams)")
+
+g2 <-garden_harvest %>%
+  filter(vegetable == "tomatoes") %>% 
+  group_by(variety) %>% 
+  summarise(sum_weight = sum(weight)) %>% 
+  mutate(sum_weight_lbs= sum_weight*0.00220462) %>% 
+  ungroup() %>% 
+  ggplot() +
+  geom_col(aes(x = sum_weight_lbs, y = fct_reorder(str_to_title(variety), sum_weight_lbs), fill = variety)) +
+  scale_fill_manual(values=c("Amish Paste"="#6f0000","volunteers"="#7c0000", "Better Boy"="#7d0e0e","grape" ="#820000", "Old German"="#8b0000", "Mortgage Lifter"="#8a0303","Big Beef"="#9c0000","Bonny Best"="#990000","Black Krim"="#ca0007","Cherokee Purple"="#df0020","Brandywine"="#d1292e","Jet Star"="#e6565a"))+
+  labs(title= "Total Harvest Weight in Pounds of All Varieties of Tomatoes", x = NULL, y = NULL) +
+  scale_x_continuous(expand = c(0,0))+
+  theme(legend.position="none", plot.title.position = "plot", panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank()) 
+
+(g1/g2) + 
+  plot_annotation(title = "My Perfect Garden Graph Progress")   
+  
+```
   
 ## Webscraping exercise (also from tutorial)
 
@@ -109,10 +147,71 @@ Use the data from the [Macalester Registrar's Fall 2017 Class Schedule](https://
   * Description
 
 Then, put all this information into one dataset (tibble or data.frame) Do not include any extraneous information like "Instructor: ".
-  
+```{r}  
+fall2017 <- read_html("https://www.macalester.edu/registrar/schedules/2017fall/class-schedule/#crs10008")
+
+course_nums <- 
+  fall2017 %>%
+  html_elements(".class-schedule-course-number") %>%
+  html_text2()
+head(course_nums)
+
+course_names <- 
+  fall2017 %>%
+  html_elements(".class-schedule-course-title") %>%
+  html_text2()
+head(course_names)
+
+course_days <- fall2017 %>%
+  html_elements(".class-schedule-course-title+ .class-schedule-label") %>%
+  html_text2()
+head(course_days)
+
+course_time <- fall2017 %>%
+  html_elements(".class-schedule-label:nth-child(4)") %>%
+  html_text2()
+head(course_time)
+
+course_room <- fall2017 %>% 
+  html_elements(".class-schedule-label:nth-child(5)") %>% 
+  html_text2()
+head(course_room)
+
+course_instructor <- fall2017 %>% 
+  html_elements(".class-schedule-label:nth-child(6)") %>% 
+  html_text2()
+head(course_instructor)
+
+course_avail <- fall2017 %>% 
+  html_elements(".class-schedule-label:nth-child(7)") %>% 
+  html_text2()
+head(course_avail)
+
+course_details <- fall2017 %>% 
+html_elements(".collapsed p:nth-child(1)") %>%
+  html_text2() %>% 
+  str_remove_all("\r|\n")
+
+course_gen_ed_require <- fall2017 %>% 
+  html_elements(".content p:nth-child(2)") %>%
+  html_text2() %>% 
+  str_sub(start = 35) %>% 
+  str_remove_all("\r|\n") 
+
+course_df <- tibble(number=course_nums, name=course_names, day=course_days, instructor=course_instructor, avail_max=course_avail, details=course_details, gen_ed_reuirments=course_gen_ed_require)
+head(course_df)
+```
 
 7. Create a graph that shows the number of sections offered per department. Hint: The department is a substring of the course number - there are `str_XXX()` functions that can help. Yes, COMP and MATH are the same department, but for this exercise you can just show the results by four letter department code, e.g., with COMP and MATH separate.
 
+```{r}
+course_df %>% 
+  separate(number, into = c("dept", "num")) %>%
+  ggplot(aes(y = fct_rev(fct_infreq(dept)))) + 
+  geom_bar() + 
+  labs(title = "Classes Per Department at Macalester in Fall 2017", x = NULL, y = NULL) 
+
+```
 
 8. Analyze the typical length of course names by department. To do so, create a new data table based on your courses data table, with the following changes:
   
@@ -120,7 +219,21 @@ Then, put all this information into one dataset (tibble or data.frame) Do not in
   * Remove departments that have fewer than 10 sections of courses. To do so, group by department, then remove observations in groups with fewer than 10 sections (Hint: use filter with n()). Then `ungroup()` the data.  
   * Create a visualization of the differences across groups in lengths of course names or course descriptions. Think carefully about the visualization you should be using!
 
+```{r}
+depts <-
+  course_df %>%  
+  separate(number, into = c("dept", "num")) %>%
+  mutate(name_length=str_length(name), 
+         details_length=str_length(details)) %>%
+  group_by(dept) %>%
+  filter(n() > 10) %>%
+  ungroup()
+
+depts %>% 
+  ggplot(aes(y = fct_reorder(dept, name_length, median), 
+             x = name_length)) + 
+  geom_boxplot() + 
+  labs(title = "Course Name Length by Department", y = NULL, x = NULL)
+```
 
   
-
-**DID YOU REMEMBER TO UNCOMMENT THE OPTIONS AT THE TOP?**
